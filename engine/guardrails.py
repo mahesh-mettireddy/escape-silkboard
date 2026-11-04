@@ -20,6 +20,10 @@ ALLOWED_GAIN_ITEMS = {
 class TurnProposal(BaseModel):
     """Compact structured schema for Gemini 2.5 Flash."""
 
+    detected_language: str = Field(
+        default="English",
+        description="First detect the exact language/style of the player's message: 'English', 'Hinglish', 'Hindi', 'Kannada', 'Telugu', or 'Tamil'.",
+    )
     action_category: Literal[
         "talk_or_haggle",
         "accept_deal_and_move",
@@ -28,10 +32,10 @@ class TurnProposal(BaseModel):
         "walk_or_run",
         "use_or_trade_item",
         "cheat_or_nonsense",
-    ] = Field(description="talk_or_haggle if asking/negotiating (0km, ₹0). accept_deal_and_move or transit_travel when moving.")
-    speaker_name: str = Field(default="Auto Driver", description="Who is speaking (e.g. Auto Driver, BMTC Conductor, Friend on Phone, Traffic Cop).")
-    spoken_response: str = Field(default="", description="Direct quote from speaker (1-2 sharp sentences in the EXACT SAME language as the player's input).")
-    scene_explanation: str = Field(default="", description="1-2 short sentences of physical action and current situation.")
+    ] = Field(description="talk_or_haggle ONLY when asking a question or starting negotiation (0km, ₹0). Use accept_deal_and_move, use_or_trade_item, or transit_travel whenever the player offers a reasonable deal/barter or takes transit so the story progresses!")
+    speaker_name: str = Field(default="Auto Driver (Ramesh)", description="Who is speaking (e.g. Auto Driver (Ramesh), BMTC Conductor, Metro Guard, Friend on Phone).")
+    spoken_response: str = Field(default="", description="Natural human spoken reply (1-2 sentences) written in the exact `detected_language`. Sound like a real street-smart Bengaluru person, NOT a stiff AI.")
+    scene_explanation: str = Field(default="", description="1-2 crisp English sentences describing what just happened physically and where the player is now.")
     time_delta_mins: int = Field(default=8, ge=2, le=22, description="3-5m talk, 8-14m move/transit.")
     battery_drain: int = Field(default=2, ge=0, le=10, description="0-1% no phone, 2-3% transit, 4-6% call/maps/UPI/app.")
     cash_spent: int = Field(default=0, ge=0, le=2000, description="INR spent this turn (0 if only talking/asking).")
