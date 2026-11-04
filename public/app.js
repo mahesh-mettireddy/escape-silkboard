@@ -458,6 +458,9 @@
 
     try {
       const res = await fetch("/api/start", { method: "POST" });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
       const data = await res.json();
       landmarks = data.landmarks || [];
       totalAirportKm = data.total_km || 38.0;

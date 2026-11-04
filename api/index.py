@@ -48,6 +48,7 @@ def _has_server_api_key() -> bool:
 
 
 @app.get("/api/health")
+@app.get("/health")
 def health_check():
     return {
         "status": "ok",
@@ -57,6 +58,7 @@ def health_check():
 
 
 @app.post("/api/start")
+@app.post("/start")
 def start_game():
     initial = create_initial_state()
     sig = sign_state(initial)
@@ -75,6 +77,7 @@ def start_game():
 
 
 @app.post("/api/turn")
+@app.post("/turn")
 def play_turn(
     req: TurnRequest,
     x_gemini_key: Optional[str] = Header(default=None),
