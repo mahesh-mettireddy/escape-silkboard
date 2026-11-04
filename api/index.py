@@ -121,5 +121,21 @@ def serve_index():
     return FileResponse(PUBLIC_DIR / "index.html")
 
 
-if PUBLIC_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(PUBLIC_DIR), html=True), name="public")
+@app.get("/styles.css")
+def serve_styles():
+    return FileResponse(PUBLIC_DIR / "styles.css", media_type="text/css")
+
+
+@app.get("/app.js")
+def serve_app_js():
+    return FileResponse(PUBLIC_DIR / "app.js", media_type="application/javascript")
+
+
+@app.api_route("/{full_path:path}", methods=["GET", "POST"])
+def catch_all_debug(full_path: str):
+    if full_path.endswith("health"):
+        return health_check()
+    if full_path.endswith("start"):
+        return start_game()
+    raise HTTPException(status_code=404, detail=f"Route not found: /{full_path}")
+
