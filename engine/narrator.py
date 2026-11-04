@@ -62,9 +62,9 @@ TAMIL_MARKERS = {
 class NarratorEngine:
     MODEL_NAME = "gemini-2.5-flash"
     FALLBACK_MODELS = (
+        "gemini-2.5-flash-lite",
         "gemini-2.5-flash",
         "gemini-2.0-flash",
-        "gemini-2.5-flash-lite",
     )
 
     @staticmethod
@@ -168,7 +168,7 @@ class NarratorEngine:
                     "google_api_key": api_key,
                     "temperature": 0.75,
                     "max_output_tokens": 600,
-                    "max_retries": 0,
+                    "max_retries": 1,
                 }
                 if model_candidate.startswith("gemini-2.5"):
                     llm_kwargs["thinking_budget"] = 0
