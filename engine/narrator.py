@@ -37,6 +37,11 @@ Player: "{player_text}" """
 
 class NarratorEngine:
     MODEL_NAME = "gemini-2.5-flash"
+    FALLBACK_MODELS = (
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+    )
 
     @classmethod
     def resolve_api_key(cls, api_key_override: Optional[str] = None) -> Tuple[Optional[str], str]:
@@ -74,75 +79,89 @@ class NarratorEngine:
                 "total_tokens": 0,
             }
 
-        try:
-            llm = ChatGoogleGenerativeAI(
-                model=cls.MODEL_NAME,
-                google_api_key=api_key,
-                temperature=0.65,
-                thinking_budget=0,
-                max_output_tokens=600,
-                max_retries=1,
+        next_lm = next_landmark_for_km(state.distance_km)
+        next_lm_str = f"{next_lm.name} ({next_lm.km}km)" if next_lm else "Airport (38km)"
+
+        history_lines = []
+        for d in state.dialogue_history[-3:]:
+            history_lines.append(
+                f"T{d.turn}: P='{d.player}' -> {d.speaker_name}: {d.spoken_response}"
             )
-            structured_llm = llm.with_structured_output(TurnProposal, include_raw=True)
-            prompt = ChatPromptTemplate.from_messages(
-                [("system", SYSTEM_PROMPT), ("human", HUMAN_PROMPT)]
-            )
-            chain = prompt | structured_llm
+        history_text = "\n".join(history_lines) if history_lines else "Start at Silk Board."
 
-            next_lm = next_landmark_for_km(state.distance_km)
-            next_lm_str = f"{next_lm.name} ({next_lm.km}km)" if next_lm else "Airport (38km)"
+        prompt_vars = {
+            "cash": state.cash,
+            "battery": state.battery,
+            "distance_km": state.distance_km,
+            "inventory": ", ".join(state.inventory) if state.inventory else "Empty",
+            "time_str": state.formatted_time,
+            "mins_left": state.minutes_remaining,
+            "turn": state.turn,
+            "location_label": state.location_label,
+            "next_landmark": next_lm_str,
+            "transport_mode": state.transport_mode,
+            "weather": state.weather,
+            "upi_allowed": state.upi_enabled,
+            "active_scene_context": state.active_scene_context,
+            "dialogue_history_text": history_text,
+            "player_text": player_text,
+        }
+        prompt = ChatPromptTemplate.from_messages(
+            [("system", SYSTEM_PROMPT), ("human", HUMAN_PROMPT)]
+        )
 
-            history_lines = []
-            for d in state.dialogue_history[-3:]:
-                history_lines.append(
-                    f"T{d.turn}: P='{d.player}' -> {d.speaker_name}: {d.spoken_response}"
-                )
-            history_text = "\n".join(history_lines) if history_lines else "Start at Silk Board."
-
-            res_dict = chain.invoke(
-                {
-                    "cash": state.cash,
-                    "battery": state.battery,
-                    "distance_km": state.distance_km,
-                    "inventory": ", ".join(state.inventory) if state.inventory else "Empty",
-                    "time_str": state.formatted_time,
-                    "mins_left": state.minutes_remaining,
-                    "turn": state.turn,
-                    "location_label": state.location_label,
-                    "next_landmark": next_lm_str,
-                    "transport_mode": state.transport_mode,
-                    "weather": state.weather,
-                    "upi_allowed": state.upi_enabled,
-                    "active_scene_context": state.active_scene_context,
-                    "dialogue_history_text": history_text,
-                    "player_text": player_text,
+        last_exc: Optional[Exception] = None
+        for model_candidate in cls.FALLBACK_MODELS:
+            try:
+                llm_kwargs: Dict[str, object] = {
+                    "model": model_candidate,
+                    "google_api_key": api_key,
+                    "temperature": 0.65,
+                    "max_output_tokens": 600,
+                    "max_retries": 0,
                 }
-            )
+                if model_candidate.startswith("gemini-2.5"):
+                    llm_kwargs["thinking_budget"] = 0
 
-            parsed: Optional[TurnProposal] = res_dict.get("parsed") if isinstance(res_dict, dict) else res_dict
-            raw_msg = res_dict.get("raw") if isinstance(res_dict, dict) else None
+                llm = ChatGoogleGenerativeAI(**llm_kwargs)
+                structured_llm = llm.with_structured_output(TurnProposal, include_raw=True)
+                chain = prompt | structured_llm
+                res_dict = chain.invoke(prompt_vars)
 
-            in_tok, out_tok, tot_tok = 0, 0, 0
-            if raw_msg is not None and getattr(raw_msg, "usage_metadata", None):
-                usage = raw_msg.usage_metadata
-                in_tok = int(usage.get("input_tokens", 0))
-                out_tok = int(usage.get("output_tokens", 0))
-                tot_tok = int(usage.get("total_tokens", in_tok + out_tok))
+                parsed: Optional[TurnProposal] = res_dict.get("parsed") if isinstance(res_dict, dict) else res_dict
+                raw_msg = res_dict.get("raw") if isinstance(res_dict, dict) else None
 
-            if parsed is not None:
-                return parsed, {
-                    "model_used": cls.MODEL_NAME,
-                    "key_source": key_source,
-                    "api_status": "ok",
-                    "status_message": None,
-                    "input_tokens": in_tok,
-                    "output_tokens": out_tok,
-                    "total_tokens": tot_tok,
-                }
-            parse_err = res_dict.get("parsing_error") if isinstance(res_dict, dict) else None
-            if parse_err is not None:
-                raise ValueError(f"Structured output parsing error: {parse_err}")
-        except Exception as exc:
+                in_tok, out_tok, tot_tok = 0, 0, 0
+                if raw_msg is not None and getattr(raw_msg, "usage_metadata", None):
+                    usage = raw_msg.usage_metadata
+                    in_tok = int(usage.get("input_tokens", 0))
+                    out_tok = int(usage.get("output_tokens", 0))
+                    tot_tok = int(usage.get("total_tokens", in_tok + out_tok))
+
+                if parsed is not None:
+                    return parsed, {
+                        "model_used": model_candidate,
+                        "key_source": key_source,
+                        "api_status": "ok",
+                        "status_message": None,
+                        "input_tokens": in_tok,
+                        "output_tokens": out_tok,
+                        "total_tokens": tot_tok,
+                    }
+                parse_err = res_dict.get("parsing_error") if isinstance(res_dict, dict) else None
+                if parse_err is not None:
+                    raise ValueError(f"Structured output parsing error: {parse_err}")
+            except Exception as exc:
+                last_exc = exc
+                err_check = str(exc).lower()
+                # If key itself is invalid/forbidden, don't waste time trying other models with the same bad key
+                if any(w in err_check for w in ("api_key_invalid", "invalid api key", "403", "permission_denied", "unauthenticated")):
+                    break
+                # Otherwise (e.g. 429 quota exhausted on gemini-2.5-flash), immediately try gemini-2.5-flash-lite / gemini-2.0-flash!
+                continue
+
+        if last_exc is not None:
+            exc = last_exc
             err_str = str(exc).lower()
             if (
                 key_source == "user_key"
@@ -157,8 +176,8 @@ class NarratorEngine:
             if any(w in err_str for w in ("429", "quota", "resource_exhausted", "resourceexhausted", "rate limit", "tokens", "timed out", "timeout")):
                 api_status = "quota_exhausted"
                 msg = (
-                    "The provided Gemini API key hit its free-tier rate/token limit (stuck at Silk Board like everything else). "
-                    "Wait 15s or click '🔑 API Key' at the top to drop in a fresh key!"
+                    "The provided Gemini API key hit its free-tier rate/token limit across all Flash models (stuck at Silk Board like everything else). "
+                    "Click '🔑 API Key' at the top to drop in a fresh key!"
                 )
             elif any(w in err_str for w in ("api_key_invalid", "invalid api key", "403", "permission_denied", "unauthenticated")):
                 api_status = "invalid_key"
