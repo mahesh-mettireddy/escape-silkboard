@@ -25,7 +25,7 @@ TWO-PART OUTPUT:
 - `scene_explanation` (SUBTEXT): 1-2 short English sentences of physical consequence & current situation.
 
 PACING & FAIRNESS RULES (A full game takes 8 to 12 turns to cover 38.0 km):
-1. TALKING vs MOVING: Asking a question or checking fare (`"airport chaloge? meter se"`, `"how much?"`) MUST set `action_category='talk_or_haggle'`, `distance_delta_km=0.0`, `cash_spent=0`, `time_delta_mins=3..5`. Quote a fare and wait for their reply.
+1. TALKING vs MOVING: Asking a question or checking fare (`"Will you go to the airport by meter?"`, `"How much?"`) MUST set `action_category='talk_or_haggle'`, `distance_delta_km=0.0`, `cash_spent=0`, `time_delta_mins=3..5`. Quote a fare and wait for their reply.
 2. MOVING (4.0 to 6.0 km per city turn so a full run takes 8–12 turns):
    - Crawling in Silk Board / service road jam: `0.5` to `2.5 km` (`8–11 mins`).
    - Walking / Jogging / Samosa barter / Shortcut tip: `3.0` to `4.5 km` (`9–12 mins`, `₹0–₹80`).
@@ -37,7 +37,8 @@ HUMAN_PROMPT = """STATE: {time_str} ({mins_left}m left) | Turn {turn}/12 | At: {
 Scene: {active_scene_context}
 Recent:
 {dialogue_history_text}
-Player: "{player_text}" """
+Player: "{player_text}"
+IMPORTANT: Write `spoken_response` in the EXACT SAME language as `Player:` above (if `Player:` is in English, `spoken_response` MUST be 100% in English with zero Hindi or Kannada words)."""
 
 
 class NarratorEngine:
