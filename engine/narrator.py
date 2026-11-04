@@ -80,7 +80,9 @@ class NarratorEngine:
                 google_api_key=api_key,
                 temperature=0.65,
                 thinking_budget=0,
-                max_output_tokens=450,
+                max_output_tokens=600,
+                max_retries=1,
+                timeout=9.0,
             )
             structured_llm = llm.with_structured_output(TurnProposal, include_raw=True)
             prompt = ChatPromptTemplate.from_messages(
@@ -138,13 +140,26 @@ class NarratorEngine:
                     "output_tokens": out_tok,
                     "total_tokens": tot_tok,
                 }
+            parse_err = res_dict.get("parsing_error") if isinstance(res_dict, dict) else None
+            if parse_err is not None:
+                raise ValueError(f"Structured output parsing error: {parse_err}")
         except Exception as exc:
             err_str = str(exc).lower()
-            if any(w in err_str for w in ("429", "quota", "resource_exhausted", "resourceexhausted", "rate limit", "tokens")):
+            if (
+                key_source == "user_key"
+                and (
+                    os.environ.get("GEMINI_API_KEY", "").strip()
+                    or os.environ.get("GOOGLE_API_KEY", "").strip()
+                )
+            ):
+                # User had a stale/exhausted key saved in browser localStorage; transparently retry with the server key!
+                return cls.generate_proposal(state, player_text, api_key_override=None)
+
+            if any(w in err_str for w in ("429", "quota", "resource_exhausted", "resourceexhausted", "rate limit", "tokens", "timed out", "timeout")):
                 api_status = "quota_exhausted"
                 msg = (
-                    "The provided Gemini API key just ran out of tokens (stuck at Silk Board like everything else). "
-                    "Click '🔑 API Key' at the top to drop in a fresh key!"
+                    "The provided Gemini API key hit its free-tier rate/token limit (stuck at Silk Board like everything else). "
+                    "Wait 15s or click '🔑 API Key' at the top to drop in a fresh key!"
                 )
             elif any(w in err_str for w in ("api_key_invalid", "invalid api key", "400", "403", "permission_denied", "unauthenticated")):
                 api_status = "invalid_key"
@@ -154,7 +169,7 @@ class NarratorEngine:
                 )
             else:
                 api_status = "api_error"
-                msg = f"Gemini hiccup ({type(exc).__name__})—switched to backup street narrator for this turn."
+                msg = f"Gemini hiccup ({type(exc).__name__}: {str(exc)[:90]})—used backup street narrator for this turn."
 
             fallback = cls._fallback_proposal(state, player_text)
             return fallback, {

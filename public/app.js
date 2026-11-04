@@ -87,8 +87,8 @@
     }
 
     // Two-way Banner Logic:
-    // 1. If server or user key ran out of tokens / invalid -> Show sarcastic top alert
-    if (meta && (meta.api_status === "quota_exhausted" || meta.api_status === "invalid_key")) {
+    // 1. If server or user key ran out of tokens / invalid / api_error -> Show top alert
+    if (meta && (meta.api_status === "quota_exhausted" || meta.api_status === "invalid_key" || meta.api_status === "api_error")) {
       els.apiAlertBanner.style.display = "flex";
       els.apiAlertBanner.className = "api-alert-banner quota-error";
       els.apiAlertIcon.textContent = meta.api_status === "quota_exhausted" ? "🪫" : "⚠️";
