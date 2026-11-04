@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Escape Silk Board — Bengaluru Text Adventure</title>
+  <meta name="description" content="It's 7:00 PM at Silk Board. Your flight check-in closes at 8:55 PM. Type anything—code owns the facts, the LLM owns the story.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="cockpit">
+    <!-- LEFT / TOP DECK: HUD + CONTINUOUS LIVE ROUTE MAP (Always Visible) -->
+    <aside class="telemetry-deck">
+      <header class="brand-bar">
+        <div class="brand-left">
+          <span class="flight-chip">FL 2047</span>
+          <div>
+            <h1 class="app-title">Escape Silk Board</h1>
+            <p class="app-sub">Check-in closes 8:55 PM • <span id="weatherBadge">🌧️ Light Drizzle</span></p>
+          </div>
+        </div>
+        <div class="brand-actions">
+          <button type="button" class="icon-btn" id="apiKeyBtn" title="Configure Gemini API Key">
+            <span>🔑</span><span class="btn-label" id="keyStatusText">API Key</span>
+          </button>
+          <button type="button" class="icon-btn" id="themeToggleBtn" title="Toggle Dark/Light Mode">
+            <span id="themeIcon">☀️</span>
+          </button>
+          <button type="button" class="icon-btn reset-btn" id="newGameBtn" title="Restart Game">
+            <span>↻</span><span class="btn-label">Reset</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- 4 Core State Counters (Clock, Battery, Cash, Bag Always Visible) -->
+      <section class="hud-strip" aria-label="Player live status">
+        <div class="hud-card" id="hudClockCard">
+          <div class="hud-top">
+            <span class="hud-label">GAME CLOCK</span>
+            <span class="hud-delta" id="clockDelta"></span>
+          </div>
+          <div class="hud-value" id="clockValue">7:00 PM</div>
+          <div class="hud-foot" id="minsLeftText">1h 55m to check-in close</div>
+        </div>
+
+        <div class="hud-card" id="hudBattCard">
+          <div class="hud-top">
+            <span class="hud-label">BATTERY</span>
+            <span class="upi-pill upi-ok" id="upiPill">UPI WORKS</span>
+          </div>
+          <div class="hud-value-row">
+            <span class="hud-value" id="battValue">32%</span>
+            <span class="hud-delta" id="battDelta"></span>
+          </div>
+          <div class="batt-bar"><div class="batt-fill" id="battFill" style="width:32%"></div></div>
+        </div>
+
+        <div class="hud-card" id="hudCashCard">
+          <div class="hud-top">
+            <span class="hud-label">CASH</span>
+            <span class="hud-delta" id="cashDelta"></span>
+          </div>
+          <div class="hud-value" id="cashValue">₹500</div>
+          <div class="hud-foot">Your total budget</div>
+        </div>
+
+        <div class="hud-card" id="hudBagCard">
+          <div class="hud-top">
+            <span class="hud-label">BAG</span>
+            <span class="hud-count" id="bagCount">1 item</span>
+          </div>
+          <div class="hud-bag-items" id="bagValue">1 cold samosa</div>
+          <div class="hud-foot" id="modeSubText">On foot</div>
+        </div>
+      </section>
+
+      <!-- SIGNATURE FEATURE: Smooth Continuous Live Route Map (0.0 km -> 38.0 km) -->
+      <section class="map-panel" id="mapPanel">
+        <div class="map-header">
+          <div class="map-header-left">
+            <span class="live-dot"></span>
+            <span class="map-heading">LIVE ROUTE TO KEMPEGOWDA INT'L</span>
+            <span class="km-pill" id="kmProgressPill">0.0 / 38.0 km</span>
+          </div>
+          <div class="map-header-right">
+            <span class="km-delta-badge" id="kmDeltaBadge">At Silk Board</span>
+          </div>
+        </div>
+
+        <div class="svg-stage">
+          <svg id="routeSvg" viewBox="0 0 920 210" preserveAspectRatio="xMidYMid meet" aria-label="Bengaluru Route Map">
+            <defs>
+              <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="3.5" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+              </filter>
+            </defs>
+
+            <g class="radar-grid">
+              <line x1="0" y1="55" x2="920" y2="55" />
+              <line x1="0" y1="115" x2="920" y2="115" />
+              <line x1="0" y1="175" x2="920" y2="175" />
+              <line x1="230" y1="0" x2="230" y2="210" />
+              <line x1="460" y1="0" x2="460" y2="210" />
+              <line x1="690" y1="0" x2="690" y2="210" />
+            </g>
+
+            <path
+              id="roadBase"
+              d="M 55 150 C 175 150, 210 68, 330 78 S 490 155, 615 110 S 765 55, 865 65"
+              class="road-base"
+            />
+
+            <path
+              id="roadFill"
+              d="M 55 150 C 175 150, 210 68, 330 78 S 490 155, 615 110 S 765 55, 865 65"
+              class="road-fill"
+            />
+
+            <g id="landmarksLayer"></g>
+
+            <g id="playerVehicle" transform="translate(55, 150)">
+              <circle class="marker-pulse" r="16" cx="0" cy="0" />
+              <rect x="-15" y="-12" width="30" height="20" rx="6" fill="#f59e0b" stroke="#0b0e14" stroke-width="2"/>
+              <rect x="-9" y="-8" width="9" height="7" rx="2" fill="#ffffff" />
+              <circle cx="-7" cy="9" r="3.5" fill="#0b0e14" stroke="#ffffff" stroke-width="1"/>
+              <circle cx="7" cy="9" r="3.5" fill="#0b0e14" stroke="#ffffff" stroke-width="1"/>
+            </g>
+          </svg>
+        </div>
+
+        <div class="scene-context-bar">
+          <span class="scene-tag">SITUATION</span>
+          <span class="scene-text" id="sceneContextText">Standing by the Silk Board flyover pillar at 7:00 PM.</span>
+        </div>
+      </section>
+    </aside>
+
+    <!-- RIGHT / BOTTOM DECK: CONVERSATION NOTEBOOK + PLAIN-ENGLISH INPUT -->
+    <main class="story-deck">
+      <div class="story-header">
+        <div class="loc-indicator">
+          <span>📍</span>
+          <span id="currentLocBanner">Silk Board Junction</span>
+        </div>
+        <div class="story-meta">
+          <span class="model-tag" id="modelTag">gemini-2.5-flash</span>
+          <span class="turn-badge" id="turnBadge">Turn 1 / 12</span>
+        </div>
+      </div>
+
+      <!-- TOP API STATUS BANNER (Shows automatically if server has no key or is out of tokens) -->
+      <div class="api-alert-banner" id="apiAlertBanner" style="display:none;">
+        <div class="api-alert-text">
+          <span id="apiAlertIcon">🔑</span>
+          <span id="apiAlertMessage">No Gemini API key has been added on the server yet.</span>
+        </div>
+        <button type="button" class="api-alert-cta" id="apiAlertActionBtn">+ Add Your Key</button>
+      </div>
+
+      <!-- Scrollable Conversation Log -->
+      <div class="story-feed" id="storyFeed" role="log" aria-live="polite"></div>
+
+      <!-- Pinned Plain-English Input Dock + Bottom Token Cost Telemetry Icon -->
+      <footer class="command-dock">
+        <!-- Popover showing real prompt token utilization & validation -->
+        <div class="token-popover" id="tokenPopover" style="display:none;">
+          <div class="tp-head">
+            <strong>⚡ Live Prompt Token Telemetry</strong>
+            <span class="tp-status" id="tpValidationBadge">✓ Lean Budget</span>
+          </div>
+          <div class="tp-grid">
+            <div><small>LAST TURN (IN / OUT)</small><strong id="tpLastTurn">0 in / 0 out</strong></div>
+            <div><small>RUN TOTAL TOKENS</small><strong id="tpRunTotal">0 tok</strong></div>
+            <div><small>ACTUAL COST (USD / INR)</small><strong id="tpRunCost">$0.0000 (₹0.00)</strong></div>
+            <div><small>KEY SOURCE</small><strong id="tpKeySource">Checking...</strong></div>
+          </div>
+          <p class="tp-note">Measured directly from Gemini <code>usage_metadata</code> (<code>thinking_budget=0</code>).</p>
+        </div>
+
+        <form id="turnForm" class="command-form" autocomplete="off">
+          <input
+            type="text"
+            id="commandInput"
+            class="command-input"
+            placeholder="What do you do or say? (e.g., 'bhaiya, airport chaloge? meter se', 'I offer ₹450 and my samosa')"
+            maxlength="240"
+            required
+          />
+          <button
+            type="button"
+            id="tokenBadgeBtn"
+            class="token-pill-btn"
+            title="View actual prompt token usage & cost validation"
+          >
+            <span>⚡</span>
+            <span id="tokenShortText">0 tok • $0.0000</span>
+          </button>
+          <button type="submit" id="sendMoveBtn" class="send-btn">
+            <span id="sendBtnText">Send →</span>
+          </button>
+        </form>
+      </footer>
+    </main>
+  </div>
+
+  <!-- END OF RUN MODAL -->
+  <div class="modal-backdrop" id="endModal" style="display:none;">
+    <div class="modal-sheet">
+      <div class="modal-pill" id="endBadge">CHECK-IN CLOSED</div>
+      <h2 class="modal-title" id="endTitle">Flight Missed</h2>
+      <p class="modal-desc" id="endReasonText"></p>
+
+      <div class="modal-stats-grid">
+        <div class="m-stat">
+          <small>FINAL TIME</small>
+          <strong id="finalClockStat">8:58 PM</strong>
+        </div>
+        <div class="m-stat">
+          <small>BATTERY</small>
+          <strong id="finalBattStat">4%</strong>
+        </div>
+        <div class="m-stat">
+          <small>CASH LEFT</small>
+          <strong id="finalCashStat">₹20</strong>
+        </div>
+        <div class="m-stat">
+          <small>RUN COST</small>
+          <strong id="finalCostStat">$0.0003</strong>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="primary-btn" id="playAgainModalBtn">Play Again ↻</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- API KEY MODAL -->
+  <div class="modal-backdrop" id="apiKeyModal" style="display:none;">
+    <div class="modal-sheet small-sheet">
+      <h3 class="modal-title" style="font-size:20px;">Gemini API Key</h3>
+      <p class="modal-desc" style="font-size:13px;">
+        The app checks for a server key first. If the server has no key (or ran out of tokens), paste your own Gemini API key below (saved only in your browser).
+      </p>
+      <input
+        type="password"
+        id="apiKeyInput"
+        class="command-input"
+        placeholder="AIzaSy..."
+        style="width:100%; margin: 12px 0;"
+      />
+      <div class="modal-actions" style="display:flex; gap:8px; justify-content:flex-end;">
+        <button type="button" class="icon-btn" id="closeApiModalBtn">Close</button>
+        <button type="button" class="primary-btn" id="saveApiKeyBtn" style="padding:8px 18px; width:auto;">Save Key</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
