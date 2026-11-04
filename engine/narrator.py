@@ -82,7 +82,6 @@ class NarratorEngine:
                 thinking_budget=0,
                 max_output_tokens=600,
                 max_retries=1,
-                timeout=9.0,
             )
             structured_llm = llm.with_structured_output(TurnProposal, include_raw=True)
             prompt = ChatPromptTemplate.from_messages(
@@ -161,7 +160,7 @@ class NarratorEngine:
                     "The provided Gemini API key hit its free-tier rate/token limit (stuck at Silk Board like everything else). "
                     "Wait 15s or click '🔑 API Key' at the top to drop in a fresh key!"
                 )
-            elif any(w in err_str for w in ("api_key_invalid", "invalid api key", "400", "403", "permission_denied", "unauthenticated")):
+            elif any(w in err_str for w in ("api_key_invalid", "invalid api key", "403", "permission_denied", "unauthenticated")):
                 api_status = "invalid_key"
                 msg = (
                     "That Gemini API key was rejected by Google's traffic police. "
