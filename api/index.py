@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -131,11 +131,23 @@ def serve_app_js():
     return FileResponse(PUBLIC_DIR / "app.js", media_type="application/javascript")
 
 
+@app.api_route("/api/index.py", methods=["GET", "POST"])
 @app.api_route("/{full_path:path}", methods=["GET", "POST"])
-def catch_all_debug(full_path: str):
-    if full_path.endswith("health"):
+async def vercel_router(
+    request: Request,
+    full_path: str = "",
+    endpoint: Optional[str] = Query(default=None),
+    x_gemini_key: Optional[str] = Header(default=None),
+):
+    target = (endpoint or full_path or "").strip("/").lower()
+    if target.endswith("health") or (request.method == "GET" and "index.py" in full_path and not target):
         return health_check()
-    if full_path.endswith("start"):
+    if target.endswith("start"):
         return start_game()
-    raise HTTPException(status_code=404, detail=f"Route not found: /{full_path}")
+    if target.endswith("turn"):
+        body = await request.json()
+        req = TurnRequest(**body)
+        return play_turn(req=req, x_gemini_key=x_gemini_key)
+    raise HTTPException(status_code=404, detail=f"Route not found: /{full_path} (endpoint={endpoint})")
+
 
