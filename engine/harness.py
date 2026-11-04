@@ -78,10 +78,49 @@ class GameHarness:
                 "total_tokens": 0,
             }
 
-        # Layer 2: LangChain + Gemini 2.5 Flash Structured Output (with real usage_metadata)
+        # Dead-phone fast-fail before calling LLM if battery is already 0% and user attempts UPI/Uber/Ola/Rapido/Calls
+        if working_state.battery <= 0 and InputGuardrail.uses_phone_keywords(cleaned_text):
+            dead_prop = TurnProposal(
+                action_category="phone_call_or_app",
+                speaker_name="Auto Driver",
+                spoken_response='"Phone switched off, sir? No QR scan, no cab app here. Only cash works now."',
+                scene_explanation="Your screen stays pitch-black at 0% battery.",
+                time_delta_mins=5,
+                battery_drain=0,
+                cash_spent=0,
+                requires_phone_or_upi=True,
+                distance_delta_km=0.0,
+            )
+            next_state = OutputGuardrail.enforce(working_state, dead_prop, cleaned_text)
+            return next_state, {
+                "model_used": "guardrail (0 tokens)",
+                "tokens_saved": True,
+                "block_reason": "dead_phone",
+                "api_status": "ok",
+                "status_message": None,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+            }
+
+        # Layer 2: LangChain + Gemini Structured Output (pure live API, no hardcoded story fallback)
         proposal, llm_meta = NarratorEngine.generate_proposal(
             working_state, cleaned_text, api_key_override=api_key_override
         )
+        if proposal is None:
+            # Do NOT advance turn or return fake hardcoded dialogue when API key is missing/exhausted
+            return working_state, {
+                "model_used": "none",
+                "key_source": llm_meta.get("key_source", "unknown"),
+                "api_status": llm_meta.get("api_status", "api_error"),
+                "status_message": llm_meta.get("status_message"),
+                "tokens_saved": False,
+                "block_reason": None,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+                "estimated_cost_usd": working_state.estimated_cost_usd,
+            }
 
         # Layer 3: Post-LLM Deterministic Clamp
         next_state = OutputGuardrail.enforce(working_state, proposal, cleaned_text)

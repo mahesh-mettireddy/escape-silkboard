@@ -526,6 +526,20 @@
 
       updateHUD(data, data.deltas);
 
+      if (data.meta && (data.meta.api_status === "no_key" || data.meta.api_status === "quota_exhausted" || data.meta.api_status === "invalid_key" || data.meta.api_status === "api_error")) {
+        appendAiResponse({
+          speakerName: "API Status",
+          spokenResponse: `"${data.meta.status_message || "Gemini API unavailable."}"`,
+          sceneExplanation: "Your turn, clock, cash, and location were NOT changed. Add or refresh your Gemini API key at the top and resend your message.",
+          ruleNotice: "Turn paused — waiting for live Gemini API",
+          timeStr: data.formatted_time,
+          locLabel: data.state.location_label,
+          deltas: null,
+          turnTokens: 0,
+        });
+        return;
+      }
+
       appendAiResponse({
         speakerName: data.state.last_speaker_name,
         spokenResponse: data.state.last_spoken_response,
