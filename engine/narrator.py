@@ -64,7 +64,6 @@ class NarratorEngine:
     FALLBACK_MODELS = (
         "gemini-2.5-flash-lite",
         "gemini-2.5-flash",
-        "gemini-2.0-flash",
     )
 
     @staticmethod
@@ -161,6 +160,7 @@ class NarratorEngine:
         )
 
         last_exc: Optional[Exception] = None
+        last_quota_exc: Optional[Exception] = None
         for model_candidate in cls.FALLBACK_MODELS:
             try:
                 llm_kwargs: Dict[str, object] = {
@@ -168,7 +168,7 @@ class NarratorEngine:
                     "google_api_key": api_key,
                     "temperature": 0.75,
                     "max_output_tokens": 600,
-                    "max_retries": 1,
+                    "max_retries": 2,
                 }
                 if model_candidate.startswith("gemini-2.5"):
                     llm_kwargs["thinking_budget"] = 0
@@ -204,9 +204,14 @@ class NarratorEngine:
             except Exception as exc:
                 last_exc = exc
                 err_check = str(exc).lower()
+                if any(w in err_check for w in ("429", "quota", "resource_exhausted", "resourceexhausted", "rate limit", "tokens")):
+                    last_quota_exc = exc
                 if any(w in err_check for w in ("api_key_invalid", "invalid api key", "403", "permission_denied", "unauthenticated")):
                     break
                 continue
+
+        if last_quota_exc is not None:
+            last_exc = last_quota_exc
 
         if last_exc is not None:
             exc = last_exc
