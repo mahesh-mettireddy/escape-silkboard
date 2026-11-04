@@ -9,19 +9,22 @@ It's **7:00 PM** at **Silk Board Junction** (`0.0 km`). Flight `FL 2047` departs
 ## Architecture: *"Code Owns the Facts. The LLM Owns the Story."*
 
 ```text
-Player Plain-English Input
+Player Natural Input (English / Hinglish / Kannada / Telugu / Tamil)
    │
    ▼
 [1. InputGuardrail (Python)] ──► 0-Token block for prompt injections & god-mode cheats
    │
    ▼
-[2. NarratorEngine (LangChain + Gemini 2.5 Flash)] ──► Pydantic v2 Structured Output (`TurnProposal`)
+[2. NarratorEngine (LangChain + Gemini 2.5 Flash / Flash-Lite)]
+   ├─ Pre-detects player language/script so speaker replies in the exact same language
+   ├─ Uses "Yes, and..." human persona with multi-turn conversational memory
+   └─ Returns Pydantic v2 Structured Output (`TurnProposal`) + live `usage_metadata`
    │
    ▼
 [3. OutputGuardrail (Python Deterministic Clamp)]
    ├─ Separates Stationary Haggling/Questions (0.0 km, ₹0) from Travel Moves
    ├─ Enforces 8–12 Turn Pacing (caps travel at 6.0 km/turn in city, 7.5 km/turn past Hebbal)
-   ├─ Enforces Monotonic Clock (+1..+20 mins per turn; time never runs backward)
+   ├─ Enforces Monotonic Clock (+2..+20 mins per turn; time never runs backward)
    ├─ Enforces Wallet Solvency (intercepts moves costing more than remaining cash)
    ├─ Enforces 0% Battery Lock (disables UPI, Uber/Ola/Rapido, Maps, and Calls)
    ├─ Enforces Single-Use Inventory (1 cold samosa removed permanently once used)
@@ -41,10 +44,10 @@ Player Plain-English Input
 
 ## Model & Token Cost per Playthrough
 
-* **Model:** `gemini-2.5-flash` via `langchain-google-genai` (`with_structured_output(TurnProposal, include_raw=True)`, `thinking_budget=0`).
-* **Actual Token Usage per Turn:** `~310 input tokens` + `~75 output tokens` = **`~385 tokens/turn`**.
+* **Models:** `gemini-2.5-flash` and `gemini-2.5-flash-lite` via `langchain-google-genai` (`with_structured_output(TurnProposal, include_raw=True)`, `thinking_budget=0`) with automatic failover across models on free-tier rate limits.
+* **Actual Token Usage per Turn:** `~310–650 input tokens` + `~75–180 output tokens` = **`~385–800 tokens/turn`**.
 * **Total Cost per Full Playthrough (8–12 turns):**
-  * Input (`~3,500 tokens` × `\$0.15 / 1M`) + Output (`~800 tokens` × `\$0.60 / 1M`) = **`~\$0.0010` (`< ₹0.09 INR`)** per complete game (`\$0.00` on Gemini Free Tier).
+  * Input (`~4,500 tokens` × `$0.15 / 1M`) + Output (`~1,200 tokens` × `$0.60 / 1M`) = **`~$0.0014` (`< ₹0.12 INR`)** per complete game (`$0.00` on Gemini Free Tier).
 
 ---
 
