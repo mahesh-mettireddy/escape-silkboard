@@ -30,7 +30,7 @@ class TurnProposal(BaseModel):
         "cheat_or_nonsense",
     ] = Field(description="talk_or_haggle if asking/negotiating (0km, ₹0). accept_deal_and_move or transit_travel when moving.")
     speaker_name: str = Field(default="Auto Driver", description="Who is speaking (e.g. Auto Driver, BMTC Conductor, Friend on Phone, Traffic Cop).")
-    spoken_response: str = Field(default="", description="Direct quote from speaker (1-2 sharp sentences).")
+    spoken_response: str = Field(default="", description="Direct quote from speaker (1-2 sharp sentences in the EXACT SAME language as the player's input).")
     scene_explanation: str = Field(default="", description="1-2 short sentences of physical action and current situation.")
     time_delta_mins: int = Field(default=8, ge=2, le=22, description="3-5m talk, 8-14m move/transit.")
     battery_drain: int = Field(default=2, ge=0, le=10, description="0-1% no phone, 2-3% transit, 4-6% call/maps/UPI/app.")
